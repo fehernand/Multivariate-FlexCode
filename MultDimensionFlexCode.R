@@ -63,8 +63,9 @@ MultDimensionFlexCoDE <- function(xTrain,
                                                                    zValidation = zValidation,
                                                                    regressionFunction = regressionFunction)
   
-  resultWeigths <- if(weigth == TRUE) randomForestWeigth__(xTrain, zTrain, xValidation)
-             else NULL
+  resultWeigths <- if(weigth == TRUE){
+    randomForestWeigth__(xTrain = xTrain,zTrain = zTrain, xValidation = xValidation)
+    }else{NULL} 
   
   copulaAjust <- copulaParamAjust__(conditionalDensities,
                                     copulaFunction,
@@ -72,7 +73,7 @@ MultDimensionFlexCoDE <- function(xTrain,
   
   out <- structure(list(op = copulaAjust$op,
                         weigth = weigth,
-                        fitWeigth = resultWeigths$fitWeigths,
+                        fitWeigth = resultWeigths$fitWeigth,
                         conditionalFit = conditionalDensities$fit,
                         copulaFunction = copulaFunction), class = 'multFlexCode')
   
@@ -122,7 +123,7 @@ densityFlexCode__ <- function(pred, z){
   
   fDensity[fDensity == 0] <- 0.0000001
   fCumulative[fCumulative >= 1] <- 0.9999999
-  fCumulative[fCumulative == 1] <- 0.0000001
+  fCumulative[fCumulative == 0] <- 0.0000001
   
   return(list("f" = fDensity, "S" = 1 - fCumulative))
 }
@@ -301,22 +302,42 @@ copulaParamAjust__ <- function(conditionalDensities,
 #' @keywords internal
 #'
 #'
-randomForestWeigth__ <- function(xTrain,
-                                 zTrain,
-                                 xValidation){
+randomForestWeigth__ <- function(xTrain = NULL,
+                                 zTrain = NULL,
+                                 fitWeigth = NULL,
+                                 xValidation = NULL){
   
-  colnames(xTrain) = NULL
+  
   wCoordenate <- list()
   
-  for(i in 1:ncol(zTrain)){
-    fitForest <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
-    wCoordenate[[i]] <- wForest__(xValidation,xTest,fitForest)
-    wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
+  # If model already fit
+  if(is.null(fitWeigth) == FALSE){
+    
+    for(i in 1:length(fitWeigth)){
+      wCoordenate[[i]] <- wForest__(xValidation,fitWeigth[[i]])
+      wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
+    }
+    
+    weights <- Reduce('+', wCoordenate)/length(wCoordenate)
+    
+    return(weights)
+  
+  # If model isnt fitted 
+  }else{
+    colnames(xTrain) = NULL
+    
+    fitForest <- list()
+    
+    for(i in 1:ncol(zTrain)){
+      fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
+      wCoordenate[[i]] <- wForest__(xValidation,fitForest[[i]])
+      wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
+    }
+    
+    weights <- Reduce('+', wCoordenate)/length(wCoordenate)
+    
+    return(list(weigths = weights, fitWeigth = fitForest))
   }
-  
-  weights <- Reduce('+', wCoordenate)/length(wCoordenate)
-  
-  return(list(weigths = weights, fitWeigth = fitForest))
 }
 
 #' (Internal) Random Forest auxiliar proximate weigth
@@ -348,10 +369,10 @@ randomForestWeigth__ <- function(xTrain,
 #'
 #'
 #'
-wForest__ = function(xValidation,xNew,fit_forest_train){
-  aux=predict(fit_forest_train,rbind(xNew,xValidation),proximity = TRUE)
+wForest__ <- function(xValidation,fit_forest_train){
+  aux=predict(fit_forest_train,xValidation,proximity = TRUE)
   
-  proximidade=aux$proximity[1:nrow(xNew),-c(1:nrow(xNew))] 
+  proximidade=aux$proximity
   
   return(proximidade)
 }
@@ -395,6 +416,10 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
   # Select like log copula function
   llCopula <- selectllCopulaFunction__(model$copulaFunction)
   
+  # If weigthed
+  if(is.null(model$weigth) == FALSE){
+    weights <- randomForestWeigth__(fitWeigth = model$fitWeigth, xValidation = xValidation, newX = newX)}
+  
   
   CDE <- list()
   for(k in 1:nrow(newX)){ # para cada Z
@@ -409,10 +434,10 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
     
     grid <- list()
     
+    
     for(i in 1:d){ 
       
       grid[[i]] <- dimDist[dimDist[,2] == i,1]
-      
       
     }
     
@@ -426,7 +451,9 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
           dataTemp[dTemp,2] = distf[expGrid[j,dTemp],dTemp]
         }
         
-        values[j] <- exp(llCopula(model$op$'par', w =1, Data = dataTemp, op = 0))
+        values[j] <- exp(llCopula(model$op$'par', w = 1, Data = dataTemp, op = 0))
+        
+        
      }
     
     CDE[[k]] <- simple_sparse_array(as.matrix(expGrid), values, dim = rep(1000, d))
@@ -520,7 +547,7 @@ predMultMarginalConditionalDensityFlexCode__ <- function(cPred){
 }
 
 conditionalDensityResult__ <- function(pred){
-  # Z1 Validação density 
+  # Z1 Valida??o density 
   
   pred$CDE <- pred$CDE/mean(rowSums(pred$CDE)*(pred$z[2]-pred$z[1]))
   
