@@ -63,19 +63,27 @@ MultDimensionFlexCoDE <- function(xTrain,
                                                                    zValidation = zValidation,
                                                                    regressionFunction = regressionFunction)
   
-  resultWeigths <- if(weigth == TRUE){
-    randomForestWeigth__(xTrain = xTrain,zTrain = zTrain, xValidation = xValidation)
-    }else{NULL} 
+  if(weigth == TRUE){
+    
+    fitWeigth <- fitRandomForestWeigth__(xTrain = xTrain,zTrain = zTrain)
+    
+    out <- structure(list(weigth = weigth,
+                   fitWeigth = fitWeigth,
+                   conditionalFit = conditionalDensities$fit,
+                   conditionalDensities = conditionalDensities,
+                   copulaFunction = copulaFunction,
+                   xValidation = xValidation), class = 'multFlexCode')
+    
+  }else{ 
   
-  copulaAjust <- copulaParamAjust__(conditionalDensities,
-                                    copulaFunction,
-                                    weigths = resultWeigths$weigths)
+    copulaAjust <- copulaParamAjust__(conditionalDensities,
+                                    copulaFunction)
   
-  out <- structure(list(op = copulaAjust$op,
+    out <- structure(list(op = copulaAjust$op,
                         weigth = weigth,
-                        fitWeigth = resultWeigths$fitWeigth,
                         conditionalFit = conditionalDensities$fit,
                         copulaFunction = copulaFunction), class = 'multFlexCode')
+  }
   
   return(out)
 }  
@@ -251,7 +259,7 @@ selectllCopulaFunction__ <- function(copulaFunction){
 #'
 copulaParamAjust__ <- function(conditionalDensities,
                                copulaFunction,
-                               weigths){
+                               weigths = NULL){
   
   llCopulaFunction <- selectllCopulaFunction__(copulaFunction)
   
@@ -302,44 +310,34 @@ copulaParamAjust__ <- function(conditionalDensities,
 #' @keywords internal
 #'
 #'
-randomForestWeigth__ <- function(xTrain = NULL,
-                                 zTrain = NULL,
-                                 fitWeigth = NULL,
-                                 xValidation = NULL){
+fitRandomForestWeigth__ <- function(xTrain = NULL,
+                                 zTrain = NULL){
+  
+  colnames(xTrain) = NULL
+    
+  fitForest <- list()
+    
+  for(i in 1:ncol(zTrain)){
+    fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
+  }
+    
+  return(fitForest)
+}
+
+randomForestWeigth__ <- function(fitWeigth , newX, xValidation){
   
   
   wCoordenate <- list()
-  
-  # If model already fit
-  if(is.null(fitWeigth) == FALSE){
     
-    for(i in 1:length(fitWeigth)){
-      wCoordenate[[i]] <- wForest__(xValidation,fitWeigth[[i]])
-      wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
-    }
-    
-    weights <- Reduce('+', wCoordenate)/length(wCoordenate)
-    
-    return(weights)
-  
-  # If model isnt fitted 
-  }else{
-    colnames(xTrain) = NULL
-    
-    fitForest <- list()
-    
-    for(i in 1:ncol(zTrain)){
-      fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
-      wCoordenate[[i]] <- wForest__(xValidation,fitForest[[i]])
-      wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
-    }
-    
-    weights <- Reduce('+', wCoordenate)/length(wCoordenate)
-    
-    return(list(weigths = weights, fitWeigth = fitForest))
+  for(i in 1:length(fitWeigth)){
+    wCoordenate[[i]] <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitWeigth[[i]])
+    wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
   }
+    
+  weights <- Reduce('+', wCoordenate)/length(wCoordenate)
+    
+  return(weights)
 }
-
 #' (Internal) Random Forest auxiliar proximate weigth
 #'
 #' @description
@@ -369,13 +367,14 @@ randomForestWeigth__ <- function(xTrain = NULL,
 #'
 #'
 #'
-wForest__ <- function(xValidation,fit_forest_train){
-  aux=predict(fit_forest_train,xValidation,proximity = TRUE)
-  
-  proximidade=aux$proximity
-  
+wForest__ <- function(xValidation, newX, fit_forest_train){
+  newX <- as.matrix(newX)
+  xValidation <- as.matrix(xValidation)
+  aux=predict(fit_forest_train,rbind(newX,xValidation),proximity = TRUE)
+  proximidade=aux$proximity[1:nrow(newX),-c(1:nrow(newX))] 
   return(proximidade)
 }
+
 
 #' (Internal) Predict Mult Dimensional FlexCode
 #'
@@ -406,7 +405,7 @@ wForest__ <- function(xValidation,fit_forest_train){
 #'
 #'
 
-predict.multFlexCode = function(model, newX, weigths = NULL){
+predict.multFlexCode = function(model, newX){
   
   cPred <- conditionalPred(fit = model$conditionalFit, newX)
   
@@ -417,8 +416,16 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
   llCopula <- selectllCopulaFunction__(model$copulaFunction)
   
   # If weigthed
-  if(is.null(model$weigth) == FALSE){
-    weights <- randomForestWeigth__(fitWeigth = model$fitWeigth, xValidation = xValidation, newX = newX)}
+  if(model$weigth == TRUE){
+    weigths <- randomForestWeigth__(fitWeigth = model$fitWeigth, newX = newX, xValidation = model$xValidation)
+    
+    par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
+                                   copulaFunction = model$copulaFunction,
+                                   weigths = weigths)$op[,2]
+  }else{
+    
+    par <- rep(model$op$'par', nrow(newX))
+  }
   
   
   CDE <- list()
@@ -451,8 +458,7 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
           dataTemp[dTemp,2] = distf[expGrid[j,dTemp],dTemp]
         }
         
-        values[j] <- exp(llCopula(model$op$'par', w = 1, Data = dataTemp, op = 0))
-        
+        values[j] <- exp(llCopula(par[k], w = 1, Data = dataTemp, op = 0))
         
      }
     
@@ -465,7 +471,7 @@ predict.multFlexCode = function(model, newX, weigths = NULL){
     z[[i]] <- cPred[[i]]$z
   }
   
-  return(list('CDE' = CDE, 'z' = z, 'newX' = newX, 'copulaFunction' = model$copulaFunction, 'conditionalFit' = model$conditionalFit, 'par' = model$op$par))
+  return(list('CDE' = CDE, 'z' = z, 'newX' = newX, 'copulaFunction' = model$copulaFunction, 'conditionalFit' = model$conditionalFit, 'par' = par))
 }
 
 #' (Internal) Conditional Predict Mult Dimensional FlexCode
