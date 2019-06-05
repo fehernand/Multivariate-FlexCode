@@ -90,7 +90,7 @@ llGumbel <- function(alpha,Data,w=1,op=1){
 
 llClayton <- function(eta,Data,w=1,op=1){
   llike <- -10^(-10)
-  if ((length(eta[eta>0])==length(eta))){
+  if ((length(eta[eta>-1])==length(eta))){
     if(op == 0){
       f <- as.data.frame(matrix(Data$f, ncol = length(Data$f)), col.names = as.character(1:length(Data$f)))
       S <- as.data.frame(matrix(Data$s, ncol = length(Data$s)), col.names = as.character(1:length(Data$s)))

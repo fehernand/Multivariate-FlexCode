@@ -1,5 +1,5 @@
 require(slam)
-
+require(FlexCoDE)
 #' Fit MultDimension FlexCode
 #'
 #' @description
@@ -263,20 +263,34 @@ copulaParamAjust__ <- function(conditionalDensities,
   
   llCopulaFunction <- selectllCopulaFunction__(copulaFunction)
   
+  if(copulaFunction == 'gumbel'){
+    lowerLimit = 0
+    upperLimit = 1
+    }
+  if(copulaFunction == 'clayton'){
+    lowerLimit = -1
+    upperLimit = 100
+  }
+  if(copulaFunction == 'ig'){
+    lowerLimit = 0
+    upperLimit = 100
+  }
+  
+  
   if(is.null(weigths) == FALSE){
     
     op <- matrix(rep(NA,nrow(weigths)*3),nrow=nrow(weigths))
     
     for(i in 1:nrow(weigths)){
       op_temp <- optim(par=0.5,fn=llCopulaFunction,w=weigths[i,],Data=conditionalDensities$validation
-                       ,method="Brent",control=list(fnscale=-1),lower=0.0001,upper=0.9999)
+                       ,method="Brent",control=list(fnscale=-1),lower=lowerLimit,upper=upperLimit)
       op[i,] <- c(op_temp$value,op_temp$par,op_temp$convergence)
     }
   }
   
   if(is.null(weigths) == TRUE){
     op <- optim(par = 0.5, fn = llCopulaFunction, Data=conditionalDensities$validation, method="Brent",
-                control=list(fnscale=-1),lower=0.0001,upper=0.9999)
+                control=list(fnscale=-1),lower=lowerLimit,upper=upperLimit)
     
   }
   return(list(op = op))
@@ -372,6 +386,43 @@ wForest__ <- function(xValidation, newX, fit_forest_train){
   xValidation <- as.matrix(xValidation)
   aux=predict(fit_forest_train,rbind(newX,xValidation),proximity = TRUE)
   proximidade=aux$proximity[1:nrow(newX),-c(1:nrow(newX))] 
+  return(proximidade)
+}
+
+
+#' (Internal) Gaussian distance weigth
+#'
+#' @description
+#' This function performes random forest technique to calculate weigths.
+#'
+#' @section Warning:
+#' For  some unknown reason the R check won't run the examples, but they work as
+#' expected.
+#'
+#' @section Maintainers:
+#' FelipeEstat
+#'
+#' @author FelipeEstat
+#'
+#' @param copulaFunction - can be 'gumbel', 'clayton, 'ig'
+#' 
+#' @examples
+#' \dontrun{
+#' 
+#'                                   
+#'                                                                                                                                
+#' }
+#'
+#' @return Class function
+#' 
+#' @keywords internal
+#'
+#'
+#'
+wDistance <- function(xValidation, newX, fit_forest_train){
+  
+  
+  
   return(proximidade)
 }
 
@@ -543,7 +594,7 @@ predMultMarginalConditionalDensityFlexCode__ <- function(cPred){
   
   result <- list()
   for(i in 1:length((cPred))){
-    predConditionalDensity <- conditionalDensityResult__(cPred[[i]])
+    predConditionalDensity <- conditionalDensityResult__(pred = cPred[[i]])
     
     result[["s"]][[i]] <- predConditionalDensity$S
     result[["f"]][[i]] <- predConditionalDensity$f
@@ -568,11 +619,9 @@ conditionalDensityResult__ <- function(pred){
     
     for(j in 1:length(dimTemp)){
       
-      distF[i,j] <- sum((pred$z[2]-pred$z[1])*pred$CDE[i,1:dimTemp[j]])
+      distF[i,dimTemp[j]] <- sum((pred$z[2]-pred$z[1])*pred$CDE[i,1:dimTemp[j]])
     }
   }
-  
-  distF <- pred$CDE
   
   distF[distF>=1] <- 1
   
@@ -580,7 +629,7 @@ conditionalDensityResult__ <- function(pred){
   
   distS[distS == 1] = 0
   
-  return(list("f" = distF, "S" = distS))
+  return(list("f" = pred$CDE, "S" = distS))
 }
 
 
