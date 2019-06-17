@@ -175,7 +175,7 @@ multMarginalConditionalDensityFlexCode__ <- function(xTrain,
   for(i in 1:ncol(zTrain)){
     
     fit <- fitFlexCoDE(xTrain, zTrain[,i], xValidation, zValidation[,i],
-                        nIMax = 30,regressionFunction = regressionFunction) 
+                        nIMax = 40,regressionFunction = regressionFunction, chooseSharpen = T) 
    
     densityValidation <- densityFlexCode__(pred = predict(fit ,xValidation),
                                z = zValidation[,i])
