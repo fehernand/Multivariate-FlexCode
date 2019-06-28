@@ -227,7 +227,7 @@ riscoKernelFunction <- function(xTrain, zTrain, xValidation, zValidation, xTest,
     f22[i] <- pred22$CDE[i,index]
     F22[i] <- sum((pred22$z[2]-pred22$z[1])*pred22$CDE[i,1:index])
     for(j in 1:1000){
-      F22_CDE[i,j] <- sum((pred11$z[2]-pred11$z[1])*pred11$CDE[i,1:j])
+      F22_CDE[i,j] <- sum((pred22$z[2]-pred22$z[1])*pred22$CDE[i,1:j])
     }
   }
   
