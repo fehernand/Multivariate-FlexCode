@@ -1,0 +1,503 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+### Rede para gerar Theta
+
+### Gerando os Dados:
+
+* $X_1 \sim Ber(3/4)$,
+* $X_2 \sim Gamma(shape=3,rate=4)$,
+* $X_3 \sim N(3,4)$
+* $X_4 \sim Po(\lambda = 10)$,
+* $X_5 \sim Beta(\alpha = 1/2, \beta = 1/4)$
+
+
+$$\mu_1(x) = 3 + 0.5x_1 + 5x_2 - 1x_3 + 3x_4 - 1.1x_5$$
+$$\mu_2(x) = 5 + 0.1x_1 + 2x_2 - 3x_3 + 3x_4 + 1.2x_5$$
+
+### Caso 1:
+
+$$(Z_1, Z_2)|X=x \sim N_2(\mu(x),\Sigma)$$
+$$ \mu(x) = ( \mu_1(x), \mu_2(x)) $$
+$$ \Sigma = \begin{pmatrix}
+1.0 & 0.5\\ 
+0.5 & 1.0
+\end{pmatrix}$$
+
+### Caso 2:
+
+$$(Z_1, Z_2)|X=x \sim N_2(\mu(x),\Sigma(x))$$
+com:
+
+$$\Sigma(x) = \Sigma \begin{pmatrix}
+0.5 + x_1 & 0\\ 
+0 & 0.5 +x1
+\end{pmatrix}$$
+
+
+### Caso 3:
+
+$$(Z_1, Z_2)|X=x \sim N_2(\mu(x),\Sigma(x))$$
+com:
+
+$$\Sigma(x) = \Sigma \begin{pmatrix}
+0.5 + x_1 & x_1/2 \\ 
+x_1/2 & 0.5 +x1
+\end{pmatrix}$$
+
+
+```{r resultado ,chache = T, message=FALSE, echo = FALSE}
+load("resultG.rda")
+load("riscoKernel.rda")
+load("resultForest.rda")
+load("resultKernel1.rda")
+load("resultKernel2.rda")
+load("resultKernel3.rda")
+
+source("MultDimensionFlexCode.R")
+source("ExemplosFlexCodeMulti.R")
+require(FlexCoDE)
+require("reshape2")
+
+riskG <- c()
+sdG <- c()
+
+riskGw <- c()
+sdGw <- c()
+
+riskFlexKernel <- c()
+sdFlexKernel <- c()
+
+riskRandomForest <- c()
+sdRandomForest <-  c()
+
+riskKernel <- c()
+sdKernel <- c()
+
+
+for(i in 1:3){
+  load(file=paste("dados",i,".rda", sep = ""))
+
+  temp <- calculateRisk(pred = predG[[i]], zTest = data.split$zTest)
+  riskG[i] <- temp$risco
+  sdG[i] <- temp$sd
+  
+  temp <- calculateRisk(pred = predGw[[i]], zTest = data.split$zTest)
+  riskGw[i] <- temp$risco
+  sdGw[i] <- temp$sd
+  
+  riskFlexKernel[i] <- kernel[[i]]$risk
+  sdFlexKernel[i] <- kernel[[i]]$sd
+  
+  riskRandomForest[i] <- mean(log(diag(predForest[[i]]$z.eval)))
+  sdRandomForest[i] <- sd(log(diag(predForest[[i]]$z.eval)))
+}
+
+
+riskKernel[1] <- mean(log(predKernel1$z.eval))
+sdKernel[1] <- sd(log(predKernel1$z.eval))
+
+riskKernel[2] <- mean(log(predKernel2$z.eval))
+sdKernel[2] <- sd(log(predKernel2$z.eval))
+
+riskKernel[3] <- mean(log(predKernel3$z.eval))
+sdKernel[3] <- sd(log(predKernel3$z.eval))
+
+
+data.frame(riskG, riskGw, riskFlexKernel, riskRandomForest, riskKernel, row.names = c("Caso 1", "Caso 2", "Caso 3"))
+
+data.frame(sdG, sdGw,sdFlexKernel, sdRandomForest, sdKernel , row.names = c("Caso 1", "Caso 2", "Caso 3"))
+
+```
+
+```{r, echo = FALSE, cache = T}
+
+
+
+riskl2copulaG <- c()
+riskl2copulaGw <- c()
+riskl2FlexKernel <- c()
+riskl2RandomForest <- c()
+riskl2Kernel <- c()
+
+
+
+for(i in 1:3){
+  load(file=paste("dados",i,".rda", sep = ""))
+
+  # Copula Gumbel
+  riskl2copulaG[i] <- l2risk(CDE = predG[[i]]$CDE,
+                        z1_grid = predG[[i]]$z[[1]],
+                        z2_grid = predG[[i]]$z[[2]],
+                        zTest = data.split$zTest,
+                        llrisk = riskG[i], type = 1)
+  
+  # Copula Gumbel W
+  riskl2copulaGw[i] <- l2risk(CDE = predGw[[i]]$CDE,
+                        z1_grid = predGw[[i]]$z[[1]],
+                        z2_grid = predGw[[i]]$z[[2]],
+                        zTest = data.split$zTest,
+                        llrisk = riskGw[i], type = 1)
+  
+  # Flexcode Kernel
+  riskl2FlexKernel[i] <- l2risk(CDE = kernel[[i]]$CDE,
+                        z1_grid = predG[[i]]$z[[1]], # mesmo grid
+                        z2_grid = predG[[i]]$z[[2]], # mesmo grid
+                        zTest = data.split$zTest,
+                        llrisk = riskFlexKernel[i], type = 1)
+  
+  # Random Forest
+  riskl2RandomForest[i] <- l2risk(CDE = predForest[[i]]$CDE,
+                           z1_grid = predG[[i]]$z[[1]], # mesmo grid
+                           z2_grid = predG[[i]]$z[[2]], # mesmo grid
+                           zTest = data.split$zTest,
+                           llrisk = riskRandomForest[1],
+                           size = size_grid[i], type = 2)
+  
+}
+
+# Kernel
+riskl2Kernel[1] <- l2risk(CDE = predKernel1$CDE,
+                          z1_grid = predKernel1$z1_grid, 
+                          z2_grid = predKernel1[[4]], 
+                          zTest = data.split$zTest,
+                          llrisk = riskKernel[1], type = 3)
+riskl2Kernel[2] <- l2risk(CDE = predKernel2$CDE,
+                          z1_grid = predKernel2$z1_grid, # mesmo grid
+                          z2_grid = predKernel2[[4]], # mesmo grid
+                          zTest = data.split$zTest,
+                          llrisk = riskKernel[2], type = 3)
+riskl2Kernel[3] <- l2risk(CDE = predKernel3$CDE,
+                          z1_grid = predKernel3$z1_grid, # mesmo grid
+                          z2_grid = predKernel3[[4]], # mesmo grid
+                          zTest = data.split$zTest,
+                          llrisk = riskKernel[3], type = 3)
+
+
+data.frame(riskl2copulaG, riskl2copulaGw, riskl2FlexKernel, riskl2RandomForest, riskl2Kernel, row.names = c("Caso 1", "Caso 2", "Caso 3"))
+
+
+```
+### Caso 1
+
+```{r, echo = FALSE, cache = T}
+
+require(ggplot2)
+library(reshape2)
+
+load("dados1.rda")
+
+caso = 1
+obs = 25
+size = 1000
+
+z1_grid = predG[[1]]$z[[1]]
+z2_grid = predG[[1]]$z[[2]]
+z1_test = data.split$zTest[obs,1]
+z2_test = data.split$zTest[obs,2]
+
+## Distribuição Real
+CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição Real") 
+
+
+#melted_cormat <- melt(CDE)
+
+#ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+#  geom_tile() + ggtitle("Distribuição Real")
+
+
+## Estimação Kernel
+CDE <- kernel[[caso]]$CDE[[obs]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Kernel") 
+
+
+## Estimação Copula (Gumbel)
+CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Copula") 
+
+
+## Estimação Weigthed Copula (Gumbel)
+CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Copula Weigthed") 
+
+
+
+## Estimacao randomforest
+
+CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+
+
+## Estimacao Kernel
+
+CDE <- matrix(predKernel1$CDE[obs,], 300, 300)
+
+z1_grid_plot <- predKernel1$z1_grid
+
+z2_grid_plot <- predKernel1[[4]]
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distribuição Kernel") 
+
+
+
+```
+
+### Caso 2
+
+
+
+```{r, echo = FALSE, cache = T}
+
+require(ggplot2)
+library(reshape2)
+
+load("dados2.rda")
+
+caso = 2
+obs = 7
+
+z1_grid = predG[[2]]$z[[1]]
+z2_grid = predG[[2]]$z[[2]]
+z1_test = data.split$zTest[obs,1]
+z2_test = data.split$zTest[obs,2]
+
+## Distribuição Real
+CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Real") 
+
+
+## Estimação Kernel
+CDE <- kernel[[caso]]$CDE[[obs]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Kernel") 
+
+
+## Estimação Copula (Gumbel)
+CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula") 
+
+
+## Estimação Weigthed Copula (Gumbel)
+CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula Weigthed") 
+
+
+
+## Estimacao randomforest
+
+CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+
+
+## Estimacao Kernel
+
+CDE <- matrix(predKernel2$CDE[obs,], 300, 300)
+
+z1_grid_plot <- predKernel2$z1_grid
+
+z2_grid_plot <- predKernel2[[4]]
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distribuição Kernel") 
+
+```
+
+### Caso 3
+
+
+```{r, echo = FALSE, cache = T}
+
+require(ggplot2)
+library(reshape2)
+
+load("dados3.rda")
+
+caso = 3
+obs = 3
+
+z1_grid = predG[[caso]]$z[[1]]
+z2_grid = predG[[caso]]$z[[2]]
+z1_test = data.split$zTest[obs,1]
+z2_test = data.split$zTest[obs,2]
+
+## Distribuição Real
+CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Real") 
+
+
+## Estimação Kernel
+CDE <- kernel[[caso]]$CDE[[obs]]
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Kernel") 
+
+
+## Estimação Copula (Gumbel)
+CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula") 
+
+
+## Estimação Weigthed Copula (Gumbel)
+CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula Weigthed") 
+
+
+
+## Estimacao randomforest
+
+CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
+
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+
+CDE_plot <- result_CDE$CDE
+
+z1_grid_plot <- result_CDE$z1_grid
+
+z2_grid_plot <- result_CDE$z2_grid
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+
+
+## Estimacao Kernel
+
+CDE <- matrix(predKernel1$CDE[obs,], 300, 300)
+
+CDE_plot <- CDE
+
+z1_grid_plot <- predKernel1$z1_grid
+
+z2_grid_plot <- predKernel1[[4]]
+
+p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Kernel") 
+
+```
+
+

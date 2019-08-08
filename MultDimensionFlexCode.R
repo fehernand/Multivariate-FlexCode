@@ -480,7 +480,7 @@ predict.multFlexCode = function(model, newX){
   
   
   CDE <- list()
-  for(k in 1:nrow(newX)){ # para cada Z
+  for(k in 1:nrow(newX)){ # para cada observaçao
     
     d <- length(Data$s)
     
@@ -636,28 +636,4 @@ conditionalDensityResult__ <- function(pred){
 
 
 
-
-calculateRisk <- function(pred, zTest){
-  
-  result <- list()
-  for(i in 1:ncol(zTest)){
-    densityValidation <- densityFlexCode__(pred = predict(pred$conditionalFit[[i]] , pred$newX),
-                                           z = zTest[,i])
-    
-    result[["s"]][[i]] <- densityValidation$S
-    result[["f"]][[i]] <- densityValidation$f
-  }
-  
-  llCopulaFunction <- selectllCopulaFunction__(pred$copulaFunction)
-  
-  risco <- llCopulaFunction(pred$par,result)/length(result$f[[1]])
-  sd <- sd(llCopulaFunction(pred$par,result,op=2))/sqrt(length(result$f[[1]]))
-  
-  # Weight
-  #risco <- llCopulaFunction(op[,2],conditionalDensities)/length(conditionalDensities$f[[1]])
-  #sd <- sd(llCopulaFunction(op[,2],conditionalDensities,op=2))/sqrt(length(conditionalDensities$f[[1]]))
-  
-  return(list(risco = risco, sd = sd))
-}
-  
 

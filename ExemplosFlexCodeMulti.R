@@ -273,8 +273,11 @@ riscoKernelFunction <- function(xTrain, zTrain, xValidation, zValidation, xTest,
                      eval.points = cbind(F11[i],F22[i]), # fazer no transformado!
                      w = wForest_value[i,])$estimate
     
-    CDE[[i]] <- matrix(pred_temp$estimate, ncol = 1000, nrow = 1000, byrow = F)
+    CDE_temp <- matrix(pred_temp$estimate, ncol = 1000, nrow = 1000, byrow = F)
     
+    CDE_temp[CDE_temp<0] <- 0
+    
+    CDE[[i]] <- CDE_temp
   }
   
   RKernel    <- sum(log(f11*f22*a1))/length(a1)
@@ -282,5 +285,111 @@ riscoKernelFunction <- function(xTrain, zTrain, xValidation, zValidation, xTest,
   
   return(list("risk" = RKernel, "sd" = SD_RKernel,"CDE" = CDE, "grid" = grid.points))
 }
+
+#### Funçoes de risco
+
+calculateRisk <- function(pred, zTest, calc_mean = T){
+  
+  result <- list()
+  for(i in 1:ncol(zTest)){
+    densityValidation <- densityFlexCode__(pred = predict(pred$conditionalFit[[i]] , pred$newX),
+                                           z = zTest[,i])
+    
+    result[["s"]][[i]] <- densityValidation$S
+    result[["f"]][[i]] <- densityValidation$f
+  }
+  
+  llCopulaFunction <- selectllCopulaFunction__(pred$copulaFunction)
+  
+  if(calc_mean == T){
+    risco <- llCopulaFunction(pred$par,result)/length(result$f[[1]])
+  }else{
+    risco <- llCopulaFunction(pred$par,result,op=2)
+  }
+  sd <- sd(llCopulaFunction(pred$par,result,op=2))/sqrt(length(result$f[[1]]))
+  
+  # Weight
+  #risco <- llCopulaFunction(op[,2],conditionalDensities)/length(conditionalDensities$f[[1]])
+  #sd <- sd(llCopulaFunction(op[,2],conditionalDensities,op=2))/sqrt(length(conditionalDensities$f[[1]]))
+  
+  return(list(risco = risco, sd = sd))
+}
+
+
+#calculateRisk(pred = predG[[1]],zTest = data.split$zTest, calc_mean = F)
+
+### Função de Risco L2
+sum_f2 <- function(CDE, z1_grid, z2_grid){
+  
+  coef.pad <- sum((z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE)
+  
+  CDE <- CDE/coef.pad
+  
+  f2 <- matrix(NA, nrow = nrow(CDE), ncol = ncol(CDE))
+  for(i in 1:nrow(CDE)){
+    for(j in 1:ncol(CDE)){
+      
+      f2[i,j] = (z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE[i,j]^2
+      
+    }
+  }
+  
+  return(sum(f2))
+}
+
+
+redimCDE <- function(CDE, z1_grid, z2_grid, z1_test, z2_test, size = 100){
+  
+  z1_index <- sort(FNN::knnx.index(data=z1_grid,query =z1_test,k=size))
+  z2_index <- sort(FNN::knnx.index(data=z2_grid,query =z2_test,k=size))
+  
+  new_CDE <- CDE[z1_index, z2_index]
+  
+  return(list('CDE' = new_CDE, 'z1_grid' = z1_grid[z1_index], 'z2_grid' = z2_grid[z2_index]))
+}
+
+
+l2risk <-function(CDE, z1_grid, z2_grid, zTest, llrisk, size = 100, type = 1, all = T){
+  
+  f2 <-c()
+  for(i in 1:nrow(zTest)){
+    
+    
+    if(type == 1 ){
+        f2[i] <- sum_f2(CDE = matrix(CDE[[i]], ncol = 1000, nrow = 1000),
+                         z1_grid = z1_grid,
+                         z2_grid = z2_grid)
+    }
+    # Exemplos RandomForest
+    if(type == 2){
+      f2[i] <- sum_f2(CDE = matrix(CDE[i,], ncol = 1000, nrow = 1000),
+                         z1_grid = z1_grid,
+                         z2_grid = z2_grid)
+    }
+    # Exemplos Kernel
+    if(type == 3){
+
+      f2[i] <- sum_f2(CDE = matrix(CDE[i,], ncol = 300, nrow = 300),
+                         z1_grid = z1_grid,
+                         z2_grid = z2_grid)
+    }
+  }
+    
+  
+  
+  return(mean(f2)-2*exp(llrisk))
+}
+
+convertCDE <- function(x){
+  matrix(x, ncol = 1000, nrow = 1000)}
+
+#CDE = list()
+#for(i in 1:length(predG[[1]]$CDE)){
+#  CDE[[i]] = convertCDE(predG[[1]]$CDE[[i]])
+#}
+
+
+
+
 
 
