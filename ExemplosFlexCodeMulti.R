@@ -18,6 +18,12 @@ gridDados <- function(caso, xTest, z){
   
   grid <- expand.grid(z[[1]], z[[2]])
   CDE <- list()
+  if(caso == 0){
+    for(i in 1:n){ 
+      CDE[[i]] <- mvtnorm::dmvnorm(x = grid, mean = rep(0, 2), sigma = diag(2), log = FALSE) }
+  }
+  
+  
   if(caso == 1){
     for(i in 1:n){ CDE[[i]] <- matrix(mvtnorm::dmvnorm(x = grid,mean = as.numeric(mu[i,]),sigma = Sigma), ncol = 1000, nrow = 1000) }
   }
@@ -44,9 +50,7 @@ gridDados <- function(caso, xTest, z){
 
 
 
-gerarDados <- function(caso = 1, n.Test = 250, n.TV = 5000){
-  
-  n <- n.Test+n.TV
+gerarDados <- function(caso = 1, n = 5000){
   
   x1 <- runif(n, 0,1)
   x2 <- rgamma(n,shape=3,rate=4)
@@ -64,6 +68,9 @@ gerarDados <- function(caso = 1, n.Test = 250, n.TV = 5000){
   mu    <- cbind(mu1,mu2)
   Sigma <- matrix(c(1,0.5,0.5,1),ncol=2,byrow=TRUE)
   
+  if(caso == 0){
+    data <- cbind(rnorm(n), rnorm(n))
+  }
   
   if(caso == 1){
     data <- matrix(rep(NA,n*2),ncol=2)
@@ -99,6 +106,25 @@ gerarDados <- function(caso = 1, n.Test = 250, n.TV = 5000){
     }
     data <- cbind(aux.1,aux.2)
   }
+  if(caso == 5){
+    aux.1 <- rep(NA,n)
+    aux.2 <- rep(NA,n)
+    for(i in 1:n){
+      aux.1[i] <- rgamma(1, shape = x2[i]*5 + x4[i]/2, scale = x4[i]/10 + 2) 
+      aux.2[i] <- rgamma(1, shape = aux.1[i]/2, scale = aux.1[i]/4)
+    }
+    data <- cbind(aux.1,aux.2)
+  }
+  if(caso == 6){
+    aux.1 <- rep(NA,n)
+    aux.2 <- rep(NA,n)
+    for(i in 1:n){
+      aux.1[i] <- rgamma(1, shape = x2[i]*5 + x4[i]/2, scale = x4[i]/10 + 2) 
+      aux.2[i] <- rgamma(1, shape = aux.1[i]/2*x5[i], scale = aux.1[i]/4*x5[i])
+    }
+    data <- cbind(aux.1,aux.2)
+  }
+  
   
   out <- as.data.frame(cbind(data,x1,x2,x3,x4,x5,aux.ci))
   
@@ -347,6 +373,19 @@ redimCDE <- function(CDE, z1_grid, z2_grid, z1_test, z2_test, size = 100){
   
   return(list('CDE' = new_CDE, 'z1_grid' = z1_grid[z1_index], 'z2_grid' = z2_grid[z2_index]))
 }
+
+
+calcRiskTemp <- function(CDE, z1_grid, z2_grid, z1_test, z2_test){
+  
+  coef.pad <- sum((z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE)
+  
+  CDE <- CDE/coef.pad
+  
+  z1_index <- sort(FNN::knnx.index(data=z1_grid,query =z1_test,k=1))
+  z2_index <- sort(FNN::knnx.index(data=z2_grid,query =z2_test,k=1))
+  
+  return(as.matrix(CDE[z1_index, z2_index]))
+  }
 
 
 l2risk <-function(CDE, z1_grid, z2_grid, zTest, llrisk, size = 100, type = 1, all = T){
