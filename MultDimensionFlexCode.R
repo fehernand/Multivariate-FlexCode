@@ -220,7 +220,6 @@ multMarginalConditionalDensityFlexCode__ <- function(xTrain,
 #'
 selectllCopulaFunction__ <- function(copulaFunction){
   #require(CouplaFunctions)
-  source("CopulaFunctions.R")
   
   if(copulaFunction == 'gumbel'){llfn = llGumbel}
   if(copulaFunction == 'clayton'){llfn = llClayton}
