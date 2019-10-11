@@ -8,6 +8,8 @@ output:
 
 ### Rede para gerar Theta
 
+#### n = 15000
+
 ### Gerando os Dados:
 
 * $X_1 \sim Ber(3/4)$,
@@ -52,15 +54,16 @@ x_1/2 & 0.5 +x1
 
 
 ```{r resultado ,chache = T, message=FALSE, echo = FALSE}
-load("resultG.rda")
-load("riscoKernel.rda")
-load("resultForest.rda")
-load("resultKernel1.rda")
-load("resultKernel2.rda")
-load("resultKernel3.rda")
+load("RDA/resultG.rda")
+load("RDA/riscoKernel.rda")
+load("RDA/resultForest.rda")
+load("RDA/resultKernel1.rda")
+load("RDA/resultKernel2.rda")
+load("RDA/resultKernel3.rda")
 
 source("MultDimensionFlexCode.R")
 source("ExemplosFlexCodeMulti.R")
+source("CopulaFunctions.R")
 require(FlexCoDE)
 require("reshape2")
 
@@ -81,7 +84,7 @@ sdKernel <- c()
 
 
 for(i in 1:3){
-  load(file=paste("dados",i,".rda", sep = ""))
+  load(file=paste("RDA/dados",i,".rda", sep = ""))
 
   temp <- calculateRisk(pred = predG[[i]], zTest = data.split$zTest)
   riskG[i] <- temp$risco
@@ -109,11 +112,104 @@ riskKernel[3] <- mean(log(predKernel3$z.eval))
 sdKernel[3] <- sd(log(predKernel3$z.eval))
 
 
+#data.frame(riskG, riskGw, riskFlexKernel, riskRandomForest, riskKernel, row.names = c("Caso 1", "Caso 2", "Caso 3"))
+
+#data.frame(sdG, sdGw,sdFlexKernel, sdRandomForest, sdKernel , row.names = c("Caso 1", "Caso 2", "Caso 3"))
+
+```
+
+
+```{r, echo = FALSE, cache = T}
+
+
+
+riskG <- c()
+riskGw <- c()
+riskFlexKernel <- c()
+riskRandomForest <- c()
+
+
+riskl2copulaG_temp <- c()
+riskl2copulaGw_temp <- c()
+riskl2FlexKernel_temp <- c()
+riskl2RandomForest_temp <- c()
+riskl2Kernel_temp <- c()
+
+
+
+for(i in 1:3){
+  load(file=paste("RDA/dados",i,".rda", sep = ""))
+  
+  riskTemp <- c()
+  for(j in 1:nrow(data.split$xTest)){
+  
+    # Copula Gumbel 
+    CDE <- matrix(predG[[i]]$CDE[[j]], ncol = 1000, nrow = 1000)
+  
+    riskl2copulaG_temp[j] <- calcRiskTemp(CDE = CDE,
+                              z1_grid = predG[[i]]$z[[1]],
+                              z2_grid = predG[[i]]$z[[2]],
+                              z1_test = data.split$zTest[j,1],
+                              z2_test = data.split$zTest[j,2])
+    
+    
+    # Copula Gumbel W
+    CDE <- matrix(predGw[[i]]$CDE[[j]], ncol = 1000, nrow = 1000)
+    
+    riskl2copulaGw_temp[j] <- calcRiskTemp(CDE = CDE,
+                              z1_grid = predG[[i]]$z[[1]],
+                              z2_grid = predG[[i]]$z[[2]],
+                              z1_test = data.split$zTest[j,1],
+                              z2_test = data.split$zTest[j,2])
+    
+    
+    # Flexcode Kernel
+    CDE <- matrix(kernel[[i]]$CDE[[j]], ncol = 1000, nrow = 1000)
+    
+    riskl2FlexKernel_temp[j] <- calcRiskTemp(CDE = CDE,
+                              z1_grid = predG[[i]]$z[[1]],
+                              z2_grid = predG[[i]]$z[[2]],
+                              z1_test = data.split$zTest[j,1],
+                              z2_test = data.split$zTest[j,2])
+    
+    
+    # Random Forest
+    CDE <- matrix(predForest[[i]]$CDE[j,], 1000, 1000)
+    
+    riskl2RandomForest_temp[j] <- calcRiskTemp(CDE = CDE,
+                              z1_grid = predG[[i]]$z[[1]],
+                              z2_grid = predG[[i]]$z[[2]],
+                              z1_test = data.split$zTest[j,1],
+                              z2_test = data.split$zTest[j,2])
+  
+  }
+  
+  riskG[i] <-log(mean(riskl2copulaG_temp)) 
+  riskGw[i] <-log(mean(riskl2copulaGw_temp)) 
+  riskFlexKernel[i] <- log(mean(riskl2FlexKernel_temp))
+  riskRandomForest[i] <-log(mean(riskl2RandomForest_temp)) 
+  
+}
+
+
+riskKernel[1] <- mean(log(predKernel1$z.eval))
+sdKernel[1] <- sd(log(predKernel1$z.eval))
+
+riskKernel[2] <- mean(log(predKernel2$z.eval))
+sdKernel[2] <- sd(log(predKernel2$z.eval))
+
+riskKernel[3] <- mean(log(predKernel3$z.eval))
+sdKernel[3] <- sd(log(predKernel3$z.eval))
+
+
 data.frame(riskG, riskGw, riskFlexKernel, riskRandomForest, riskKernel, row.names = c("Caso 1", "Caso 2", "Caso 3"))
 
 data.frame(sdG, sdGw,sdFlexKernel, sdRandomForest, sdKernel , row.names = c("Caso 1", "Caso 2", "Caso 3"))
 
+
 ```
+
+
 
 ```{r, echo = FALSE, cache = T}
 
@@ -128,7 +224,7 @@ riskl2Kernel <- c()
 
 
 for(i in 1:3){
-  load(file=paste("dados",i,".rda", sep = ""))
+  load(file=paste("RDA/dados",i,".rda", sep = ""))
 
   # Copula Gumbel
   riskl2copulaG[i] <- l2risk(CDE = predG[[i]]$CDE,
@@ -183,85 +279,98 @@ data.frame(riskl2copulaG, riskl2copulaGw, riskl2FlexKernel, riskl2RandomForest, 
 
 
 ```
+
+
 ### Caso 1
 
 ```{r, echo = FALSE, cache = T}
 
 require(ggplot2)
 library(reshape2)
+source("graphResult.R")
 
-load("dados1.rda")
+load("RDA/dados1.rda")
 
 caso = 1
-obs = 25
+obs = 3
 size = 1000
+size2 = 300 
 
 z1_grid = predG[[1]]$z[[1]]
 z2_grid = predG[[1]]$z[[2]]
 z1_test = data.split$zTest[obs,1]
 z2_test = data.split$zTest[obs,2]
 
+
+
 ## Distribuição Real
 CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_real <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid)))
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição Real") 
-
-
-#melted_cormat <- melt(CDE)
-
-#ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
-#  geom_tile() + ggtitle("Distribuição Real")
 
 
 ## Estimação Kernel
 CDE <- kernel[[caso]]$CDE[[obs]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2 + 30)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_kernel <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_kernel,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Kernel")
 
-z2_grid_plot <- result_CDE$z2_grid
+#contourGraph(melted_cormat = melted_cormat_kernel, melted_cormat_real = melted_cormat_real, autozoom = T)  +  ggtitle("FlexCode Kernel")
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Kernel") 
 
 
 ## Estimação Copula (Gumbel)
 CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_G <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_G,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Copula") 
+#contourGraph(melted_cormat = melted_cormat_G, melted_cormat_real = melted_cormat_real, autozoom = T)  + ggtitle("FlexCode Copula")
 
 
 ## Estimação Weigthed Copula (Gumbel)
 CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_Gw <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_Gw,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula Weighted")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot, nlevels = 3) + title(main = "Distribuição FlexCode Copula Weigthed") 
-
+#contourGraph(melted_cormat = melted_cormat_Gw, melted_cormat_real = melted_cormat_real, autozoom = T)  + ggtitle("FlexCode Copula Weighted")
 
 
 ## Estimacao randomforest
@@ -270,13 +379,17 @@ CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
 
 result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_rf <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Random Forest")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+#contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  + ggtitle("Random Forest")
 
 
 ## Estimacao Kernel
@@ -287,8 +400,18 @@ z1_grid_plot <- predKernel1$z1_grid
 
 z2_grid_plot <- predKernel1[[4]]
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distribuição Kernel") 
+melted_cormat_rf <- melted_df_Plot(CDE = CDE,
+                                     z1_grid = z1_grid_plot,
+                                     z2_grid = z2_grid_plot)
 
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Kernel")
+
+contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("Kernel")
 
 
 ```
@@ -302,7 +425,7 @@ p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distri
 require(ggplot2)
 library(reshape2)
 
-load("dados2.rda")
+load("RDA/dados2.rda")
 
 caso = 2
 obs = 7
@@ -315,58 +438,74 @@ z2_test = data.split$zTest[obs,2]
 ## Distribuição Real
 CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_real <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid)))
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Real") 
 
 
 ## Estimação Kernel
 CDE <- kernel[[caso]]$CDE[[obs]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2 + 30)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_kernel <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_kernel,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Kernel")
 
-z2_grid_plot <- result_CDE$z2_grid
+contourGraph(melted_cormat = melted_cormat_kernel, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Kernel")
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Kernel") 
 
 
 ## Estimação Copula (Gumbel)
 CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_G <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_G,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula") 
+contourGraph(melted_cormat = melted_cormat_G, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Copula")
 
 
 ## Estimação Weigthed Copula (Gumbel)
 CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_Gw <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_Gw,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula Weighted")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula Weigthed") 
-
+contourGraph(melted_cormat = melted_cormat_Gw, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Copula Weighted")
 
 
 ## Estimacao randomforest
@@ -375,13 +514,18 @@ CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
 
 result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_rf <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Random Forest")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("Random Forest")
 
 
 ## Estimacao Kernel
@@ -392,7 +536,19 @@ z1_grid_plot <- predKernel2$z1_grid
 
 z2_grid_plot <- predKernel2[[4]]
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distribuição Kernel") 
+melted_cormat_rf <- melted_df_Plot(CDE = CDE,
+                                     z1_grid = z1_grid_plot,
+                                     z2_grid = z2_grid_plot)
+
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Kernel")
+
+contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("Kernel")
+
 
 ```
 
@@ -404,7 +560,7 @@ p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE) + title(main = "Distri
 require(ggplot2)
 library(reshape2)
 
-load("dados3.rda")
+load("RDA/dados3.rda")
 
 caso = 3
 obs = 3
@@ -417,58 +573,74 @@ z2_test = data.split$zTest[obs,2]
 ## Distribuição Real
 CDE <- gridDados(caso = caso, xTest = data.split$xTest[obs,], z = predG[[caso]]$z)[[1]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_real <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid)))
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Real") 
 
 
 ## Estimação Kernel
 CDE <- kernel[[caso]]$CDE[[obs]]
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2 + 30)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_kernel <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_kernel,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Kernel")
 
-z2_grid_plot <- result_CDE$z2_grid
+contourGraph(melted_cormat = melted_cormat_kernel, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Kernel")
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Kernel") 
 
 
 ## Estimação Copula (Gumbel)
 CDE <- matrix(predG[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2 + 50)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_G <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_G,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula") 
+contourGraph(melted_cormat = melted_cormat_G, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Copula")
 
 
 ## Estimação Weigthed Copula (Gumbel)
 CDE <- matrix(predGw[[caso]]$CDE[[obs]], ncol = 1000, nrow = 1000)
 
-result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
+result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size2 + 50)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_Gw <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_Gw,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("FlexCode Copula Weighted")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição FlexCode Copula Weigthed") 
-
+contourGraph(melted_cormat = melted_cormat_Gw, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("FlexCode Copula Weighted")
 
 
 ## Estimacao randomforest
@@ -477,26 +649,40 @@ CDE <- matrix(predForest[[caso]]$CDE[obs,], 1000, 1000)
 
 result_CDE <- redimCDE(CDE, z1_grid, z2_grid, z1_test, z2_test, size = size)
 
-CDE_plot <- result_CDE$CDE
+melted_cormat_rf <- melted_df_Plot(CDE = result_CDE$CDE,
+                                     z1_grid = result_CDE$z1_grid,
+                                     z2_grid = result_CDE$z2_grid)
 
-z1_grid_plot <- result_CDE$z1_grid
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Random Forest")
 
-z2_grid_plot <- result_CDE$z2_grid
-
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Randomforest") 
+contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("Random Forest")
 
 
 ## Estimacao Kernel
 
-CDE <- matrix(predKernel1$CDE[obs,], 300, 300)
+CDE <- matrix(predKernel3$CDE[obs,], 300, 300)
 
-CDE_plot <- CDE
+z1_grid_plot <- predKernel3$z1_grid
 
-z1_grid_plot <- predKernel1$z1_grid
+z2_grid_plot <- predKernel3[[4]]
 
-z2_grid_plot <- predKernel1[[4]]
+melted_cormat_rf <- melted_df_Plot(CDE = CDE,
+                                     z1_grid = z1_grid_plot,
+                                     z2_grid = z2_grid_plot)
 
-p <- contour(x = z1_grid_plot, y = z2_grid_plot, z = CDE_plot) + title(main = "Distribuição Kernel") 
+contourGraph(melted_cormat = melted_cormat_rf,
+             melted_cormat_real = melted_cormat_real,
+             x_lim = c(min(z1_grid), max(z1_grid)),
+             y_lim = c(min(z2_grid), max(z2_grid))) +
+  ggtitle("Kernel")
+
+contourGraph(melted_cormat = melted_cormat_rf, melted_cormat_real = melted_cormat_real, autozoom = T)  +
+  ggtitle("Kernel")
 
 ```
 

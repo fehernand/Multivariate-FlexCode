@@ -383,7 +383,11 @@ randomForestWeigth__ <- function(fitWeigth , newX, xValidation){
 wForest__ <- function(xValidation, newX, fit_forest_train){
   newX <- as.matrix(newX)
   xValidation <- as.matrix(xValidation)
-  aux=predict(fit_forest_train,rbind(newX,xValidation),proximity = TRUE)
+  
+  xPred <- rbind(newX,xValidation)
+  colnames(xPred) = NULL
+  
+  aux=predict(fit_forest_train,xPred,proximity = TRUE)
   proximidade=aux$proximity[1:nrow(newX),-c(1:nrow(newX))] 
   return(proximidade)
 }

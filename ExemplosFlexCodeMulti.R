@@ -1,6 +1,6 @@
 
 
-gridDados <- function(caso, xTest, z){
+gridDados <- function(caso, xTest, z, zTest = NULL){
   
   n = nrow(xTest)
   
@@ -45,6 +45,91 @@ gridDados <- function(caso, xTest, z){
       CDE[[i]] <- matrix(mvtnorm::dmvnorm(x = grid,mean = as.numeric(mu[i,]),sigma = Sigma), ncol = 1000, nrow = 1000)
     }
   }
+
+  if(caso == 4){
+    
+    z1 <- zTest[,1]
+    
+    for(i in 1:n){
+      
+      z1_CDE <- matrix(dlogis(z[[1]], mu1[i] ,5), ncol = 1)
+      
+      z2_CDE <- matrix(dnorm(z[[2]], -mu2[i]*z1[i],2), ncol = 1)
+      
+      CDE[[i]] <- z1_CDE %*% t(z2_CDE)
+      
+    }
+    
+  }
+  
+  if(caso == 5){
+    
+    z1 <- zTest[,1]
+    
+    for(i in 1:n){
+      
+      shape1 <- x2[i]*5 + x4[i]/2
+      
+      scale1 <- x4[i]/10 + 2
+      
+      shape2 <- z1[i]/2
+      
+      scale2 <- z1[i]/4
+      
+      z1_CDE <- matrix(dgamma(z[[1]], shape = shape1, scale = scale1), ncol = 1)
+      
+      z2_CDE <- matrix(dgamma(z[[2]], shape = shape2, scale = scale2), ncol = 1)
+      
+      CDE[[i]] <- z1_CDE %*% t(z2_CDE)
+      
+    }
+    
+  }
+  
+  if(caso == 6){
+    
+    z1 <- zTest[,1]
+    
+    if(n == 1){
+      
+      shape1 <- x2*5 + x4/2
+      
+      scale1 <- x4/10 + 2
+      
+      shape2 <- z1/2*x5
+      
+      scale2 <- z1/4*x5
+      
+      z1_CDE <- matrix(dgamma(z[[1]], shape = shape1, scale = scale1), ncol = 1)
+      
+      z2_CDE <- matrix(dgamma(z[[2]], shape = shape2, scale = scale2), ncol = 1)
+      
+      CDE[[1]] <- z1_CDE %*% t(z2_CDE)
+      
+    }else{
+      
+    }
+    
+    for(i in 1:n){
+      
+      shape1 <- x2[i]*5 + x4[i]/2
+      
+      scale1 <- x4[i]/10 + 2
+      
+      shape2 <- z1[i]/2*x5[i]
+      
+      scale2 <- z1[i]/4*x5[i]
+      
+      z1_CDE <- matrix(dgamma(z[[1]], shape = shape1, scale = scale1), ncol = 1)
+      
+      z2_CDE <- matrix(dgamma(z[[2]], shape = shape2, scale = scale2), ncol = 1)
+      
+      CDE[[i]] <- z1_CDE %*% t(z2_CDE)
+      
+    }
+    
+  }
+  
   return(CDE)
 }
 
