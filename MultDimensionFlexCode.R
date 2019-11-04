@@ -65,10 +65,13 @@ MultDimensionFlexCoDE <- function(xTrain,
   
   if(weigth == TRUE){
     
-    fitWeigth <- fitRandomForestWeigth__(xTrain = xTrain,zTrain = zTrain)
+    resultParamsWeigth <- fitRandomForestWeigth__(xTrain = xTrain,zTrain = zTrain)
+    
+    fitWeigth <- resultParamsWeigth$fitForest
     
     out <- structure(list(weigth = weigth,
-                          fitWeigth = fitWeigth,
+                          fitWeigth = resultParamsWeigth$fitForest,
+                          hWeigth = resultParamsWeigth$h,
                           conditionalFit = conditionalDensities$fit,
                           conditionalDensities = conditionalDensities,
                           copulaFunction = copulaFunction,
@@ -323,8 +326,13 @@ copulaParamAjust__ <- function(conditionalDensities,
 #' @keywords internal
 #'
 #'
-fitRandomForestWeigth__ <- function(xTrain = NULL,
-                                    zTrain = NULL){
+fitRandomForestWeigth__ <- function(xTrain,
+                                    zTrain,
+                                    xValidation,
+                                    zValidation,
+                                    conditionalDensities,
+                                    copulaFunction
+                                    ){
   
   colnames(xTrain) = NULL
   
@@ -334,16 +342,76 @@ fitRandomForestWeigth__ <- function(xTrain = NULL,
     fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
   }
   
-  return(fitForest)
+  result_cv <- crossValidationForestWeight__(conditionalDensities = conditionalDensities,
+                                             copulaFunction = copulaFunction,
+                                             fitForest = fitForest,
+                                             xValidation = xValidation,
+                                             kfold = 10)
+  
+  return(list("fitForest" = fitForest, "h" = result_cv$h_best))
 }
 
-randomForestWeigth__ <- function(fitWeigth , newX, xValidation){
+crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, fitForest, xValidation, kfold = 10){
+  
+  indiceKfold <- rep(1:kfold, length.out = nrow(xValidation))[sample(1:nrow(xValidation))]
+  
+  h_grid = seq(from = 0.05, to = 4, by = 0.5)
+  risk_cross <- c()
+  for(h in 1:length(h_grid)){
+    
+    risk_kfold <- c()
+    for(i in 1:kfold){
+    
+    
+      weigths <- randomForestWeigth__(fitWeigth = fitForest,
+                           newX = xValidation[indiceKfold == i,],
+                           xValidation = xValidation[indiceKfold != i,],
+                           h = h_grid[h])
+      
+      # quebrar conditional densities em teste e treino
+      
+      dataTemp_treino <- list()
+      dataTemp_teste <- list()
+      
+      dataTemp_treino$validation$s <- lapply(conditionalDensities$validation$s, function(x) x[indiceKfold != i])
+      dataTemp_treino$validation$f <- lapply(conditionalDensities$validation$f, function(x) x[indiceKfold != i])
+      
+      dataTemp_teste$validation$s <- lapply(conditionalDensities$validation$s, function(x) x[indiceKfold == i])
+      dataTemp_teste$validation$f <- lapply(conditionalDensities$validation$f, function(x) x[indiceKfold == i])
+        
+      par <- copulaParamAjust__(conditionalDensities = dataTemp_treino,
+                                      copulaFunction,
+                                      weigths = weigths)$op[,2]
+      
+      llCopula <- selectllCopulaFunction__(copulaFunction)
+      
+      values_temp <- c()
+      
+      for(w in 1:length(par)){
+        individual_data <- data.frame("s" = c(NA,NA), "f" = c(NA,NA))
+        individual_data[,1] <- as.data.frame(sapply(dataTemp_teste$validation$s, function(x) x[w]))
+        individual_data[,2] <- as.data.frame(sapply(dataTemp_teste$validation$f, function(x) x[w]))
+        
+        
+        values_temp[w] <- llCopula(par[w], w = 1, Data = individual_data, op = 0) 
+      }
+      
+      risk_kfold[i] <- mean(values_temp)
+    }
+    risk_cross[h] <- mean(risk_kfold)
+  }
+  
+  return(list("risk" = risk_cross,"h" = h_grid, "h_best" = h_grid[risk_cross == min(risk_cross)] ))
+}
+
+randomForestWeigth__ <- function(fitWeigth , newX, xValidation, h){
   
   
   wCoordenate <- list()
   
   for(i in 1:length(fitWeigth)){
     wCoordenate[[i]] <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitWeigth[[i]])
+    wCoordenate[[i]] <- exp(-(1/(wCoordenate[[i]]*h)))
     wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
   }
   
@@ -393,41 +461,7 @@ wForest__ <- function(xValidation, newX, fit_forest_train){
 }
 
 
-#' (Internal) Gaussian distance weigth
-#'
-#' @description
-#' This function performes random forest technique to calculate weigths.
-#'
-#' @section Warning:
-#' For  some unknown reason the R check won't run the examples, but they work as
-#' expected.
-#'
-#' @section Maintainers:
-#' FelipeEstat
-#'
-#' @author FelipeEstat
-#'
-#' @param copulaFunction - can be 'gumbel', 'clayton, 'ig'
-#' 
-#' @examples
-#' \dontrun{
-#' 
-#'                                   
-#'                                                                                                                                
-#' }
-#'
-#' @return Class function
-#' 
-#' @keywords internal
-#'
-#'
-#'
-wDistance <- function(xValidation, newX, fit_forest_train){
-  
-  
-  
-  return(proximidade)
-}
+
 
 
 #' (Internal) Predict Mult Dimensional FlexCode
@@ -471,7 +505,10 @@ predict.multFlexCode = function(model, newX){
   
   # If weigthed
   if(model$weigth == TRUE){
-    weigths <- randomForestWeigth__(fitWeigth = model$fitWeigth, newX = newX, xValidation = model$xValidation)
+    weigths <- randomForestWeigth__(fitWeigth = model$fitWeigth,
+                                    newX = newX,
+                                    xValidation = model$xValidation,
+                                    h = model$hWeigth)
     
     par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
                               copulaFunction = model$copulaFunction,
