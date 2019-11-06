@@ -65,7 +65,12 @@ MultDimensionFlexCoDE <- function(xTrain,
   
   if(weigth == TRUE){
     
-    resultParamsWeigth <- fitRandomForestWeigth__(xTrain = xTrain,zTrain = zTrain)
+    resultParamsWeigth <- fitRandomForestWeigth__(xTrain = xTrain,
+                                                  zTrain = zTrain,
+                                                  xValidation = xValidation,
+                                                  zValidation = zValidation,
+                                                  conditionalDensities = conditionalDensities,
+                                                  copulaFunction = copulaFunction)
     
     fitWeigth <- resultParamsWeigth$fitForest
     
@@ -401,7 +406,7 @@ crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, 
     risk_cross[h] <- mean(risk_kfold)
   }
   
-  return(list("risk" = risk_cross,"h" = h_grid, "h_best" = h_grid[risk_cross == min(risk_cross)] ))
+  return(list("risk" = risk_cross,"h" = h_grid, "h_best" = h_grid[risk_cross == max(risk_cross)] ))
 }
 
 randomForestWeigth__ <- function(fitWeigth , newX, xValidation, h){
