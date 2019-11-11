@@ -25,7 +25,7 @@ require(FlexCoDE)
 #'  regressionFunction.Lasso, regressionFunction.Forest or regressionFunction.XGBoost. Type ?regressionFunction.XX to find out
 #'  more about method XX.
 #' @param copulaFunction - Copula function to be used. Can be 'gumbel', 'clayton', 'ig'.
-#' @param weigth - A vector of weigths. 
+#' @param weight - A vector of weights. 
 #'   
 #' 
 #' @examples
@@ -41,7 +41,7 @@ require(FlexCoDE)
 #'                                nIMax = 30,         
 #'                                regressionFunction = reg,
 #'                                copulaFunction = 'gumbel', 
-#'                                weigth = FALSE) 
+#'                                weight = FALSE) 
 #'                                   
 #'                                                                                                                                
 #' }
@@ -55,7 +55,7 @@ MultDimensionFlexCoDE <- function(xTrain,
                                   zValidation,  
                                   regressionFunction,
                                   copulaFunction = 'gumbel',  
-                                  weigth = FALSE){
+                                  weight = FALSE){
   
   conditionalDensities <- multMarginalConditionalDensityFlexCode__(xTrain=xTrain,
                                                                    zTrain = zTrain,
@@ -63,32 +63,44 @@ MultDimensionFlexCoDE <- function(xTrain,
                                                                    zValidation = zValidation,
                                                                    regressionFunction = regressionFunction)
   
-  if(weigth == TRUE){
+  if(weight == TRUE){
     
-    resultParamsWeigth <- fitRandomForestWeigth__(xTrain = xTrain,
+    resultParamsweight <- fitRandomForestweight__(xTrain = xTrain,
                                                   zTrain = zTrain,
                                                   xValidation = xValidation,
                                                   zValidation = zValidation,
                                                   conditionalDensities = conditionalDensities,
                                                   copulaFunction = copulaFunction)
     
-    fitWeigth <- resultParamsWeigth$fitForest
+    fitweight <- resultParamsweight$fitForest
     
-    out <- structure(list(weigth = weigth,
-                          fitWeigth = resultParamsWeigth$fitForest,
-                          hWeigth = resultParamsWeigth$h,
+    out <- structure(list(weight = weight,
+                          fitweight = resultParamsweight$fitForest,
+                          hweight = resultParamsweight$h,
                           conditionalFit = conditionalDensities$fit,
                           conditionalDensities = conditionalDensities,
                           copulaFunction = copulaFunction,
                           xValidation = xValidation), class = 'multFlexCode')
     
-  }else{ 
+  }
+  if(weight == "euclidean"){
+    
+    
+    
+    out <- structure(list(weight = weight,
+                          conditionalFit = conditionalDensities$fit,
+                          copulaFunction = copulaFunction,
+                          xValidation = xValidation), class = 'multFlexCode')
+    
+  }
+  
+  if(weight == FALSE){ 
     
     copulaAjust <- copulaParamAjust__(conditionalDensities,
                                       copulaFunction)
     
     out <- structure(list(op = copulaAjust$op,
-                          weigth = weigth,
+                          weight = weight,
                           conditionalFit = conditionalDensities$fit,
                           copulaFunction = copulaFunction), class = 'multFlexCode')
   }
@@ -266,7 +278,7 @@ selectllCopulaFunction__ <- function(copulaFunction){
 #'
 copulaParamAjust__ <- function(conditionalDensities,
                                copulaFunction,
-                               weigths = NULL){
+                               weights = NULL){
   
   llCopulaFunction <- selectllCopulaFunction__(copulaFunction)
   
@@ -284,18 +296,18 @@ copulaParamAjust__ <- function(conditionalDensities,
   }
   
   
-  if(is.null(weigths) == FALSE){
+  if(is.null(weights) == FALSE){
     
-    op <- matrix(rep(NA,nrow(weigths)*3),nrow=nrow(weigths))
+    op <- matrix(rep(NA,nrow(weights)*3),nrow=nrow(weights))
     
-    for(i in 1:nrow(weigths)){
-      op_temp <- optim(par=0.5,fn=llCopulaFunction,w=weigths[i,],Data=conditionalDensities$validation
+    for(i in 1:nrow(weights)){
+      op_temp <- optim(par=0.5,fn=llCopulaFunction,w=weights[i,],Data=conditionalDensities$validation
                        ,method="Brent",control=list(fnscale=-1),lower=lowerLimit,upper=upperLimit)
       op[i,] <- c(op_temp$value,op_temp$par,op_temp$convergence)
     }
   }
   
-  if(is.null(weigths) == TRUE){
+  if(is.null(weights) == TRUE){
     op <- optim(par = 0.5, fn = llCopulaFunction, Data=conditionalDensities$validation, method="Brent",
                 control=list(fnscale=-1),lower=lowerLimit,upper=upperLimit)
     
@@ -303,10 +315,10 @@ copulaParamAjust__ <- function(conditionalDensities,
   return(list(op = op))
 }
 
-#' (Internal) Random Forest weigth
+#' (Internal) Random Forest weight
 #'
 #' @description
-#' This function performes random forest technique to calculate weigths.
+#' This function performes random forest technique to calculate weights.
 #'
 #' @section Warning:
 #' For  some unknown reason the R check won't run the examples, but they work as
@@ -331,7 +343,7 @@ copulaParamAjust__ <- function(conditionalDensities,
 #' @keywords internal
 #'
 #'
-fitRandomForestWeigth__ <- function(xTrain,
+fitRandomForestweight__ <- function(xTrain,
                                     zTrain,
                                     xValidation,
                                     zValidation,
@@ -368,7 +380,7 @@ crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, 
     for(i in 1:kfold){
     
     
-      weigths <- randomForestWeigth__(fitWeigth = fitForest,
+      weights <- randomForestweight__(fitweight = fitForest,
                            newX = xValidation[indiceKfold == i,],
                            xValidation = xValidation[indiceKfold != i,],
                            h = h_grid[h])
@@ -386,7 +398,7 @@ crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, 
         
       par <- copulaParamAjust__(conditionalDensities = dataTemp_treino,
                                       copulaFunction,
-                                      weigths = weigths)$op[,2]
+                                      weights = weights)$op[,2]
       
       llCopula <- selectllCopulaFunction__(copulaFunction)
       
@@ -409,13 +421,13 @@ crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, 
   return(list("risk" = risk_cross,"h" = h_grid, "h_best" = h_grid[risk_cross == max(risk_cross)] ))
 }
 
-randomForestWeigth__ <- function(fitWeigth , newX, xValidation, h){
+randomForestweight__ <- function(fitweight , newX, xValidation, h){
   
   
   wCoordenate <- list()
   
-  for(i in 1:length(fitWeigth)){
-    wCoordenate[[i]] <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitWeigth[[i]])
+  for(i in 1:length(fitweight)){
+    wCoordenate[[i]] <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitweight[[i]])
     wCoordenate[[i]] <- exp(-(1/(wCoordenate[[i]]*h)))
     wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
   }
@@ -424,10 +436,32 @@ randomForestWeigth__ <- function(fitWeigth , newX, xValidation, h){
   
   return(weights)
 }
-#' (Internal) Random Forest auxiliar proximate weigth
+
+
+#### Euclidean Distance
+
+euclideanDistance <- function(xValidation, xTest, columns = 1:5){
+  
+  weights <- matrix(NA,ncol = nrow(xValidation), nrow = nrow(xTest))
+  
+  for(i in 1:nrow(xTest)){
+    
+    distanceTemp <- as.matrix(xTest[i,columns]) %*% t(as.matrix(xValidation[,columns]))
+    
+    weights[i,] <- distanceTemp
+    
+  }
+  
+  return(weights)
+  
+}
+
+
+
+#' (Internal) Random Forest auxiliar proximate weight
 #'
 #' @description
-#' This function performes random forest technique to calculate weigths.
+#' This function performes random forest technique to calculate weights.
 #'
 #' @section Warning:
 #' For  some unknown reason the R check won't run the examples, but they work as
@@ -472,7 +506,7 @@ wForest__ <- function(xValidation, newX, fit_forest_train){
 #' (Internal) Predict Mult Dimensional FlexCode
 #'
 #' @description
-#' This function performes random forest technique to calculate weigths.
+#' This function performes random forest technique to calculate weights.
 #'
 #' @section Warning:
 #' For  some unknown reason the R check won't run the examples, but they work as
@@ -508,17 +542,29 @@ predict.multFlexCode = function(model, newX){
   # Select like log copula function
   llCopula <- selectllCopulaFunction__(model$copulaFunction)
   
-  # If weigthed
-  if(model$weigth == TRUE){
-    weigths <- randomForestWeigth__(fitWeigth = model$fitWeigth,
+  # If weighted
+  if(model$weight == TRUE){
+    weights <- randomForestweight__(fitweight = model$fitweight,
                                     newX = newX,
                                     xValidation = model$xValidation,
-                                    h = model$hWeigth)
+                                    h = model$hweight)
     
     par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
                               copulaFunction = model$copulaFunction,
-                              weigths = weigths)$op[,2]
-  }else{
+                              weights = weights)$op[,2]
+  }
+  if(model$weight == "euclidean"){
+    
+    weights <- euclideanDistance(xValidation = model$xValidation,
+                                 xTest = newX, columns = 1:5)
+    
+    par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
+                              copulaFunction = model$copulaFunction,
+                              weights = weights)$op[,2]
+    
+  }
+  
+  if(model$weight == FALSE){
     
     par <- rep(model$op$'par', nrow(newX))
   }
@@ -573,7 +619,7 @@ predict.multFlexCode = function(model, newX){
 #' (Internal) Conditional Predict Mult Dimensional FlexCode
 #'
 #' @description
-#' This function performes random forest technique to calculate weigths.
+#' This function performes random forest technique to calculate weights.
 #'
 #' @section Warning:
 #' For  some unknown reason the R check won't run the examples, but they work as
