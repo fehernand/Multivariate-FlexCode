@@ -459,9 +459,11 @@ euclideanDistance <- function(xValidation, xTest, h, columns = 1:5){
   
   for(i in 1:nrow(xTest)){
     
-    distanceTemp <- as.matrix(xTest[i,columns]) %*% t(as.matrix(xValidation[,columns]))
+    distanciaUnitaria <- as.matrix(xValidation[,columns]) - t(matrix(rep(as.numeric(xTest[i,columns]),nrow(xValidation)), ncol = nrow(xValidation)))
     
-    distanceTemp <- distanceTemp/sum(distanceTemp)
+    distanciaUnitaria <- scale(distanciaUnitaria)^2
+    
+    distanceTemp <- sqrt(rowSums(distanciaUnitaria))
     
     weights[i,] <- exp(-(1/(distanceTemp*h)))  
     
