@@ -85,9 +85,14 @@ MultDimensionFlexCoDE <- function(xTrain,
   }
   if(weight == "euclidean"){
     
-    
+    resultParamsweight <- crossValidationWeight__(conditionalDensities = conditionalDensities,
+                            copulaFunction =  copulaFunction,
+                            xValidation = xValidation,
+                            type = "euclidean",
+                            kfold = 10)
     
     out <- structure(list(weight = weight,
+                          hweight = resultParamsweight$h_best,
                           conditionalFit = conditionalDensities$fit,
                           copulaFunction = copulaFunction,
                           xValidation = xValidation), class = 'multFlexCode')
@@ -359,7 +364,7 @@ fitRandomForestweight__ <- function(xTrain,
     fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
   }
   
-  result_cv <- crossValidationForestWeight__(conditionalDensities = conditionalDensities,
+  result_cv <- crossValidationWeight__(conditionalDensities = conditionalDensities,
                                              copulaFunction = copulaFunction,
                                              fitForest = fitForest,
                                              xValidation = xValidation,
@@ -368,7 +373,7 @@ fitRandomForestweight__ <- function(xTrain,
   return(list("fitForest" = fitForest, "h" = result_cv$h_best))
 }
 
-crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, fitForest, xValidation, kfold = 10){
+crossValidationWeight__ <- function(conditionalDensities, copulaFunction , xValidation, type = "randomforest", fitForest = NULL, kfold = 10){
   
   indiceKfold <- rep(1:kfold, length.out = nrow(xValidation))[sample(1:nrow(xValidation))]
   
@@ -379,11 +384,19 @@ crossValidationForestWeight__ <- function(conditionalDensities, copulaFunction, 
     risk_kfold <- c()
     for(i in 1:kfold){
     
-    
-      weights <- randomForestweight__(fitweight = fitForest,
-                           newX = xValidation[indiceKfold == i,],
-                           xValidation = xValidation[indiceKfold != i,],
-                           h = h_grid[h])
+      if(type == "randomforest"){
+        weights <- randomForestweight__(fitweight = fitForest,
+                                        newX = xValidation[indiceKfold == i,],
+                                        xValidation = xValidation[indiceKfold != i,],
+                                        h = h_grid[h])
+      }
+      if(type == "euclidean"){
+        weights <- euclideanDistance(xValidation = xValidation[indiceKfold != i,],
+                                     xTest = xValidation[indiceKfold == i,],
+                                     columns = 1:5,
+                                     h = h_grid[h])
+      }
+      
       
       # quebrar conditional densities em teste e treino
       
@@ -440,7 +453,7 @@ randomForestweight__ <- function(fitweight , newX, xValidation, h){
 
 #### Euclidean Distance
 
-euclideanDistance <- function(xValidation, xTest, columns = 1:5){
+euclideanDistance <- function(xValidation, xTest, h, columns = 1:5){
   
   weights <- matrix(NA,ncol = nrow(xValidation), nrow = nrow(xTest))
   
@@ -448,7 +461,9 @@ euclideanDistance <- function(xValidation, xTest, columns = 1:5){
     
     distanceTemp <- as.matrix(xTest[i,columns]) %*% t(as.matrix(xValidation[,columns]))
     
-    weights[i,] <- distanceTemp
+    distanceTemp <- distanceTemp/sum(distanceTemp)
+    
+    weights[i,] <- exp(-(1/(distanceTemp*h)))  
     
   }
   
@@ -556,7 +571,7 @@ predict.multFlexCode = function(model, newX){
   if(model$weight == "euclidean"){
     
     weights <- euclideanDistance(xValidation = model$xValidation,
-                                 xTest = newX, columns = 1:5)
+                                 xTest = newX,h = model$hweight, columns = 1:5)
     
     par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
                               copulaFunction = model$copulaFunction,
