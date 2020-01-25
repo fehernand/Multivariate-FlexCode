@@ -129,6 +129,11 @@ gridDados <- function(caso, xTest, z, zTest = NULL){
     }
     
   }
+  if(caso == 7){
+    data <- matrix(rep(NA,n*2),ncol=2)
+    for(i in 1:n){ 
+      CDE[[i]] <- mvtnorm::dmvnorm(x = grid, cbind(0,0),matrix(c(1,1-x1[i]^2,1-x1[i]^2,1),ncol=2,byrow=TRUE)) }
+  }
   
   return(CDE)
 }
@@ -208,6 +213,11 @@ gerarDados <- function(caso = 1, n = 5000){
       aux.2[i] <- rgamma(1, shape = aux.1[i]/2*x5[i], scale = aux.1[i]/4*x5[i])
     }
     data <- cbind(aux.1,aux.2)
+  }
+  if(caso == 7){
+    data <- matrix(rep(NA,n*2),ncol=2)
+    for(i in 1:n){ 
+      data[i,] <- mvtnorm::rmvnorm(1, cbind(0,0),matrix(c(1,1-x1[i]^2,1-x1[i]^2,1),ncol=2,byrow=TRUE)) }
   }
   
   
