@@ -446,14 +446,15 @@ sum_f2 <- function(CDE, z1_grid, z2_grid){
   
   CDE <- CDE/coef.pad
   
-  f2 <- matrix(NA, nrow = nrow(CDE), ncol = ncol(CDE))
-  for(i in 1:nrow(CDE)){
-    for(j in 1:ncol(CDE)){
-      
-      f2[i,j] = (z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE[i,j]^2
-      
-    }
-  }
+  # for(i in 1:nrow(CDE)){
+  #   for(j in 1:ncol(CDE)){
+  #     
+  #     f2[i,j] = (z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE[i,j]^2
+  #     
+  #   }
+  # }
+  
+  f2 = (z1_grid[2] - z1_grid[1])*(z2_grid[2] - z2_grid[1])*CDE^2
   
   return(sum(f2))
 }
@@ -483,7 +484,7 @@ calcRiskTemp <- function(CDE, z1_grid, z2_grid, z1_test, z2_test){
   }
 
 
-l2risk <-function(CDE, z1_grid, z2_grid, zTest, llrisk, size = 100, type = 1, all = T){
+l2risk <-function(CDE, z1_grid, z2_grid, zTest, risk, size = 100, type = 1, all = T){
   
   f2 <-c()
   for(i in 1:nrow(zTest)){
@@ -509,9 +510,9 @@ l2risk <-function(CDE, z1_grid, z2_grid, zTest, llrisk, size = 100, type = 1, al
     }
   }
     
+  l2risk <- f2-2*risk
   
-  
-  return(mean(f2)-2*exp(llrisk))
+  return(list(mean = mean(l2risk), sd = sd(l2risk)))
 }
 
 convertCDE <- function(x){
