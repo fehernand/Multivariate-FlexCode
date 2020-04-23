@@ -525,6 +525,85 @@ convertCDE <- function(x){
 
 
 
+calcularRisco <- function(xTest, zTest, pred, predG, tipo = 1L, tolerance = 1e-9){
+  
+  riskl2_temp = c()
+  
+  for(j in 1:nrow(xTest)){
+    
+    if(tipo == 1L){
+      CDE <- matrix(pred$CDE[[j]], ncol = 1000, nrow = 1000)
+    }
+    if(tipo == 2L){
+      CDE <- matrix(pred$CDE[j,], 1000, 1000)
+    }
+    if(tipo == 3L){
+      CDE <- matrix(pred$CDE[j,], sqrt(ncol(pred$CDE)), sqrt(ncol(pred$CDE)))
+      
+      riskl2_temp[j] <- calcRiskTemp(CDE = CDE,
+                                     z1_grid = pred$z1_grid,
+                                     z2_grid = pred$z2_grid,
+                                     z1_test = zTest[j,1],
+                                     z2_test = zTest[j,2])
+      
+    }
+    if(tipo != 3L){
+      
+      riskl2_temp[j] <- calcRiskTemp(CDE = CDE,
+                                     z1_grid = predG$z[[1]],
+                                     z2_grid = predG$z[[2]],
+                                     z1_test = zTest[j,1],
+                                     z2_test = zTest[j,2])
+      
+    }
+    
+    
+    
+    
+  }
+  
+  risk_mean <- mean(riskl2_temp)
+  
+  
+  result <- l2risk(CDE = pred$CDE,
+                   z1_grid = predG$z[[1]],
+                   z2_grid = predG$z[[2]],
+                   zTest = zTest,
+                   risk = risk_mean, type = tipo)
+  
+  return(result)
+}
+
+
+
+predictKernel <- function(bw, predG, xTest, size = 300){
+  
+  # 
+  z1_grid <- predG$z[[1]]
+  z2_grid <- predG$z[[2]]
+  
+  z1_grid_temp <- seq(min(z1_grid),max(z1_grid), length.out = size)
+  z2_grid_temp <- seq(min(z2_grid),max(z2_grid), length.out = size)
+  
+  CDE <- matrix(NA, nrow = nrow(xTest), ncol = size^2)
+  
+  for(i in 1:nrow(xTest)){
+    
+    Z.eval <- expand.grid(z1 = z1_grid_temp, z2 = z2_grid_temp)
+    
+    gridX <- xTest[rep(i, size^2),]
+    
+    # Calculando CDE
+    CDE[i,] <- fitted(npcdens(bw, exdat = gridX, eydat = Z.eval  ,ftol = 0.01, tol=0.01))
+    
+  }
+  
+  return(list(CDE = CDE, z1_grid = z1_grid_temp, z2_grid = z2_grid_temp))
+  
+}
+
+
+
 
 
 
