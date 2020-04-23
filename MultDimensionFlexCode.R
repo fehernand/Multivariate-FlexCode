@@ -372,18 +372,17 @@ fitRandomForestweight__ <- function(xTrain,
   
   fitForest <- list()
   
-  # densidade de probabilidade acumulada estimada nas observações da validação 
-  F1 = (1 - conditionalDensities[["validation"]][["s"]][[1]])
-  F2 = (1 - conditionalDensities[["validation"]][["s"]][[2]])
+  for(i in 1:ncol(zTrain)){
+    fitForest[[i]] <- randomForest::randomForest(x=xTrain,y=zTrain[,i])
+  }
   
-  fitForest <- randomForest::randomForest(x= cbind(xValidation, F1),y=F2)
   
   result_cv <- crossValidationWeight__(conditionalDensities = conditionalDensities,
                                              copulaFunction = copulaFunction,
                                              fitForest = fitForest,
-                                             xValidation = cbind(xValidation, rep(1,nrow(xValidation))),
+                                             xValidation = xValidation,
                                              kfold = 2,
-                                       h_limits = c(0.05, 7), h_by = 0.5)
+                                       h_limits = c(0.05, 7), h_by = 1)
   
   return(list("fitForest" = fitForest, "h" = result_cv$h_best))
 }
@@ -452,15 +451,21 @@ crossValidationWeight__ <- function(conditionalDensities, copulaFunction , xVali
 randomForestweight__ <- function(fitweight , newX, xValidation, h){
   
   
-  #wCoordenate <- list()
+  wCoordenate <- list()
+  
+  for(i in 1:length(fitweight)){
+    wCoordenate[[i]] <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitweight[[i]])
+    wCoordenate[[i]] <- exp(-(1/(wCoordenate[[i]]*h)))
+    wCoordenate[[i]] <- wCoordenate[[i]]/rowSums(wCoordenate[[i]])
+  }
   
   
-  wCoordenate <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitweight)
-  wCoordenate <- exp(-(1/(wCoordenate*h)))
-  wCoordenate <- wCoordenate/rowSums(wCoordenate)
+  # wCoordenate <- wForest__(xValidation = xValidation, newX = newX, fit_forest_train = fitweight)
+  # wCoordenate <- exp(-(1/(wCoordenate*h)))
+  # wCoordenate <- wCoordenate/rowSums(wCoordenate)
   
-  weights <- wCoordenate
-  #weights <- Reduce('+', wCoordenate)/length(wCoordenate)
+  #weights <- wCoordenate
+  weights <- Reduce('+', wCoordenate)/length(wCoordenate)
   
   return(weights)
 }
@@ -596,8 +601,8 @@ predict.multFlexCode = function(model, newX, h = NULL){
     F1 = 1 - model$conditionalDensities$validation$s[[1]]
     
     weights <- randomForestweight__(fitweight = model$fitweight,
-                                    newX = cbind(newX, rep(0,nrow(newX))),
-                                    xValidation = cbind(model$xValidation, rep(0,nrow(model$xValidation))),
+                                    newX = newX,
+                                    xValidation = model$xValidation,
                                     h = h)
     
     par <- copulaParamAjust__(conditionalDensities = model$conditionalDensities,
